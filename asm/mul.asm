@@ -10,10 +10,10 @@ _start:
                 mov             rdi, rsp
                 call            read_long
                 lea             rdi, [rsp + 128 * 8]
-		mov		rsi, rsp
+                mov             rsi, rsp
                 call           	mul_long_long
-		mov		rcx, 256
-		lea		rdi, [rsp + 128 * 8 * 2]
+                mov             rcx, 256
+                lea             rdi, [rsp + 128 * 8 * 2]
                 call            write_long
 
                 mov             al, 0x0a
@@ -51,7 +51,7 @@ add_long_long:
 ;    rsi -- address of summand #2 (long number) 
 ;    result is written to rdi  
 sub_long_long:
-		push            rdi
+                push            rdi
                 push            rsi
                 push            rcx
 
@@ -75,62 +75,62 @@ sub_long_long:
 ;rcx - length of args in qwords
 ;result is written to rdi + 128 * 8, length of result is 2 * rcx
 mul_long_long:
-		push            rdi
+                push            rdi
                 push            rsi
                 push            rcx
-		push		rbx
-		
-		mov		rbx, rsi
-		add		rsi, 4 * 128 * 8
-		xor		r8, r8
-		mov		r15, rdi
+                push            rbx
+        
+                mov             rbx, rsi
+                add             rsi, 4 * 128 * 8
+                xor             r8, r8
+                mov             r15, rdi
 .loop:
-		mov		rdi, r15
-		mov		r9, 128
+                mov             rdi, r15
+                mov             r9, 128
 .loop_copy:
-		mov		rax, [rdi]
-		mov		[rdi + 128 * 8 * 3], rax
-		add		rdi, 8
-		dec		r9
-		jnz		.loop_copy
-		
-		mov		rdi, rsi
+                mov             rax, [rdi]
+                mov             [rdi + 128 * 8 * 3], rax
+                add             rdi, 8
+                dec             r9
+                jnz             .loop_copy
+        
+                mov             rdi, rsi
 
-		push		rcx
-		push		rbx
-		mov		rcx, 129
-		mov		rbx, [rbx]
-		call		mul_long_short
-		pop		rbx
-		pop		rcx
+                push            rcx
+                push            rbx
+                mov             rcx, 129
+                mov             rbx, [rbx]
+                call            mul_long_short
+                pop             rbx
+                pop             rcx
 
-		lea		rdi, [rdi - 128 * 8 * 2 + r8 * 8]
-		
-		push		rcx
-		mov		rcx, 129
-		call		add_long_long
-		pop		rcx
+                lea             rdi, [rdi - 128 * 8 * 2 + r8 * 8]
+        
+                push            rcx
+                mov             rcx, 129
+                call            add_long_long
+                pop             rcx
 
-		push		rdi
-		push		rcx
-		push		rsi
-		mov		rcx, 129
-		mov		rdi, rsi
-		call		set_zero
-		pop		rsi
-		pop		rcx
-		pop		rdi
+                push            rdi
+                push            rcx
+                push            rsi
+                mov             rcx, 129
+                mov             rdi, rsi
+                call            set_zero
+                pop             rsi
+                pop             rcx
+                pop             rdi
 
-		inc		r8
-		add		rbx, 8
-		dec		rcx
-		jnz		.loop
+                inc             r8
+                add             rbx, 8
+                dec             rcx
+                jnz             .loop
 
-		pop		rbx
-		pop		rcx
-		pop		rsi
-		pop		rdi
-		ret
+                pop             rbx
+                pop             rcx
+                pop             rsi
+                pop             rdi
+                ret
 
 ; adds 64-bit number to long number
 ;    rdi -- address of summand #1 (long number)
@@ -168,11 +168,11 @@ mul_long_short:
                 push            rax
                 push            rdi
                 push            rcx
-		push		rsi
-		push		rbx
+                push             rsi
+                push             rbx
 
                 xor             rsi, rsi
-		clc
+                clc
 .loop:
                 mov             rax, [rdi]
                 mul             rbx
@@ -184,8 +184,8 @@ mul_long_short:
                 dec             rcx
                 jnz             .loop
 
-		pop		rbx
-		pop		rsi
+                pop             rbx
+                pop             rsi
                 pop             rcx
                 pop             rdi
                 pop             rax
