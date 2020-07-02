@@ -3,7 +3,7 @@
                 global          _start
 _start:
 
-                sub             rsp, 7 * 128 * 8
+                sub             rsp, 6 * 128 * 8
                 lea             rdi, [rsp + 128 * 8]
                 mov             rcx, 128
                 call            read_long
@@ -11,9 +11,7 @@ _start:
                 call            read_long
                 lea             rdi, [rsp + 128 * 8]
 		mov		rsi, rsp
-		mov		rbx, 15
-                call           	mul_long_short
-		mov		rcx, 128
+                call           	sub_long_long
                 call            write_long
 
                 mov             al, 0x0a
