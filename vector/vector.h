@@ -1,7 +1,6 @@
 #include <cstddef>
 #include <algorithm>
 #include <cassert>
-#include <iostream>
 
 template <typename T>
 struct vector
