@@ -1,17 +1,20 @@
-section         .text
-
+                section         .text
+                %define          LEN 128
                 global          _start
 _start:
 
-                sub             rsp, 2 * 128 * 8
-                lea             rdi, [rsp + 128 * 8]
-                mov             rcx, 128
+                sub             rsp, 4 * LEN * 8
+                lea             rdi, [rsp + LEN * 8]
+                mov             rcx, LEN
                 call            read_long
                 mov             rdi, rsp
                 call            read_long
-                lea             rsi, [rsp + 128 * 8]
-                call            add_long_long
-
+                lea             rdi, [rsp + LEN * 8]
+                mov             r10, rsp
+                lea             r8, [rsp + LEN * 2 * 8]
+                call            mul_long_long
+                mov             rcx, LEN * 2
+                mov             rdi, r8
                 call            write_long
 
                 mov             al, 0x0a
@@ -44,6 +47,99 @@ add_long_long:
                 pop             rdi
                 ret
 
+; subs 2nd long number from 1st
+;    rdi -- address of summand #1 (long number)
+;    rsi -- address of summand #2 (long number) 
+;    result is written to rdi  
+sub_long_long:
+                push            rdi
+                push            rsi
+                push            rcx
+
+                clc
+.loop:
+                mov             rax, [rsi]
+                lea             rsi, [rsi + 8]
+                sbb             [rdi], rax
+                lea             rdi, [rdi + 8]
+                dec             rcx
+                jnz             .loop
+
+                pop             rcx
+                pop             rsi
+                pop             rdi
+                ret
+
+; multiplies two long numbers
+; rdi - address of 1st arg
+; r10 - address of 2nd arg
+; rcx - length of args in qwords
+; result is written to r8, length of result is 2 * rcx
+mul_long_long:
+                push            rdi
+                push            r10
+                push            rcx
+                push            r8
+                
+                mov             r15, rdi
+                mov             rbp, rsp
+                sub             rsp, (LEN + 1) * 8
+                mov             rsi, rsp
+.loop:
+                push            rcx
+                
+                mov             rcx, LEN + 1
+                mov             rdi, rsi
+                call            set_zero
+                
+                dec             rcx
+                mov             rdi, r15
+                call            copy_long_number
+                
+                mov             rdi, rsi
+                mov             rbx, [r10]
+                inc             rcx
+                call            mul_long_short
+                
+                mov             rdi, r8
+                call            add_long_long
+                pop             rcx
+                
+                add             r8, 8
+                add             r10, 8
+                dec             rcx
+                jnz             .loop
+                
+                mov             rsp, rbp
+                
+                pop             r8
+                pop             rcx
+                pop             r10
+                pop             rdi
+                ret
+
+; copies long number
+; rdi - address of number
+; rsi - address of copy
+; rcx - length of number in qwords
+copy_long_number:
+                push            rdi
+                push            rsi
+                push            rcx
+                
+.loop_copy:
+                mov             rax, [rdi]
+                mov             [rsi], rax
+                add             rsi, 8
+                add             rdi, 8
+                dec             rcx
+                jnz             .loop_copy
+                
+                pop             rcx
+                pop             rsi
+                pop             rdi
+                ret
+                
 ; adds 64-bit number to long number
 ;    rdi -- address of summand #1 (long number)
 ;    rax -- summand #2 (64-bit unsigned)
@@ -80,8 +176,11 @@ mul_long_short:
                 push            rax
                 push            rdi
                 push            rcx
+                push            rsi
+                push            rbx
 
                 xor             rsi, rsi
+                clc
 .loop:
                 mov             rax, [rdi]
                 mul             rbx
@@ -93,6 +192,8 @@ mul_long_short:
                 dec             rcx
                 jnz             .loop
 
+                pop             rbx
+                pop             rsi
                 pop             rcx
                 pop             rdi
                 pop             rax
