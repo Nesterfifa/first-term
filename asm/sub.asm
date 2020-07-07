@@ -1,15 +1,15 @@
                 section         .text
-
+                %define          LEN 128
                 global          _start
 _start:
 
-                sub             rsp, 6 * 128 * 8
-                lea             rdi, [rsp + 128 * 8]
-                mov             rcx, 128
+                sub             rsp, 2 * LEN * 8
+                lea             rdi, [rsp + LEN * 8]
+                mov             rcx, LEN
                 call            read_long
                 mov             rdi, rsp
                 call            read_long
-                lea             rdi, [rsp + 128 * 8]
+                lea             rdi, [rsp + LEN * 8]
                 mov             rsi, rsp
                 call            sub_long_long
                 call            write_long
@@ -67,69 +67,76 @@ sub_long_long:
                 pop             rdi
                 ret
 
-;multiplies two long numbers
-;rdi - address of 1st arg
-;rsi - address of 2nd arg
-;rcx - length of args in qwords
-;result is written to rdi + 128 * 8, length of result is 2 * rcx
+; multiplies two long numbers
+; rdi - address of 1st arg
+; r10 - address of 2nd arg
+; rcx - length of args in qwords
+; result is written to r8, length of result is 2 * rcx
 mul_long_long:
                 push            rdi
-                push            rsi
+                push            r10
                 push            rcx
-                push            rbx
-        
-                mov             rbx, rsi
-                add             rsi, 4 * 128 * 8
-                xor             r8, r8
+                push            r8
+                
                 mov             r15, rdi
+                mov             rbp, rsp
+                sub             rsp, (LEN + 1) * 8
+                mov             rsi, rsp
 .loop:
-                mov             rdi, r15
-                mov             r9, 128
-.loop_copy:
-                mov             rax, [rdi]
-                mov             [rdi + 128 * 8 * 3], rax
-                add             rdi, 8
-                dec             r9
-                jnz             .loop_copy
-        
-                mov             rdi, rsi
-
                 push            rcx
-                push            rbx
-                mov             rcx, 129
-                mov             rbx, [rbx]
-                call            mul_long_short
-                pop             rbx
-                pop             rcx
-
-                lea             rdi, [rdi - 128 * 8 * 2 + r8 * 8]
-        
-                push            rcx
-                mov             rcx, 129
-                call            add_long_long
-                pop             rcx
-
-                push            rdi
-                push            rcx
-                push            rsi
-                mov             rcx, 129
+                
+                mov             rcx, LEN + 1
                 mov             rdi, rsi
                 call            set_zero
-                pop             rsi
+                
+                dec             rcx
+                mov             rdi, r15
+                call            copy_long_number
+                
+                mov             rdi, rsi
+                mov             rbx, [r10]
+                inc             rcx
+                call            mul_long_short
+                
+                mov             rdi, r8
+                call            add_long_long
                 pop             rcx
-                pop             rdi
-
-                inc             r8
-                add             rbx, 8
+                
+                add             r8, 8
+                add             r10, 8
                 dec             rcx
                 jnz             .loop
+                
+                mov             rsp, rbp
+                
+                pop             r8
+                pop             rcx
+                pop             r10
+                pop             rdi
+                ret
 
-                pop             rbx
+; copies long number
+; rdi - address of number
+; rsi - address of copy
+; rcx - length of number in qwords
+copy_long_number:
+                push            rdi
+                push            rsi
+                push            rcx
+                
+.loop_copy:
+                mov             rax, [rdi]
+                mov             [rsi], rax
+                add             rsi, 8
+                add             rdi, 8
+                dec             rcx
+                jnz             .loop_copy
+                
                 pop             rcx
                 pop             rsi
                 pop             rdi
                 ret
-
+                
 ; adds 64-bit number to long number
 ;    rdi -- address of summand #1 (long number)
 ;    rax -- summand #2 (64-bit unsigned)
@@ -166,8 +173,8 @@ mul_long_short:
                 push            rax
                 push            rdi
                 push            rcx
-                push             rsi
-                push             rbx
+                push            rsi
+                push            rbx
 
                 xor             rsi, rsi
                 clc

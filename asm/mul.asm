@@ -3,17 +3,16 @@
                 global          _start
 _start:
 
-                sub             rsp, 6 * LEN * 8
+                sub             rsp, 4 * LEN * 8
                 lea             rdi, [rsp + LEN * 8]
                 mov             rcx, LEN
                 call            read_long
                 mov             rdi, rsp
                 call            read_long
                 lea             rdi, [rsp + LEN * 8]
-                lea             rsi, [rsp + LEN * 4 * 8]
                 mov             r10, rsp
                 lea             r8, [rsp + LEN * 2 * 8]
-                call           	mul_long_long
+                call            mul_long_long
                 mov             rcx, LEN * 2
                 mov             rdi, r8
                 call            write_long
@@ -78,15 +77,22 @@ sub_long_long:
 ; result is written to r8, length of result is 2 * rcx
 mul_long_long:
                 push            rdi
-                push            rsi
                 push            r10
                 push            rcx
                 push            r8
                 
                 mov             r15, rdi
+                mov             rbp, rsp
+                sub             rsp, (LEN + 1) * 8
+                mov             rsi, rsp
 .loop:
                 push            rcx
-                mov             rcx, LEN
+                
+                mov             rcx, LEN + 1
+                mov             rdi, rsi
+                call            set_zero
+                
+                dec             rcx
                 mov             rdi, r15
                 call            copy_long_number
                 
@@ -97,9 +103,6 @@ mul_long_long:
                 
                 mov             rdi, r8
                 call            add_long_long
-                
-                mov             rdi, rsi
-                call            set_zero
                 pop             rcx
                 
                 add             r8, 8
@@ -107,10 +110,11 @@ mul_long_long:
                 dec             rcx
                 jnz             .loop
                 
+                mov             rsp, rbp
+                
                 pop             r8
                 pop             rcx
                 pop             r10
-                pop             rsi
                 pop             rdi
                 ret
 
