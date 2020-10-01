@@ -132,6 +132,9 @@ void big_integer::difference(big_integer &a, const big_integer &b, size_t idx) {
 big_integer& big_integer::operator/=(big_integer const& rhs) {
     big_integer dividend(*this);
     big_integer ans;
+    if (dividend.size() < rhs.size()) {
+        return *this = big_integer();
+    }
     if (rhs.size() == 1) {
         ans = div_short(dividend, rhs.digits[0]);
     } else {
