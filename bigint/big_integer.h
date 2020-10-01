@@ -1,15 +1,16 @@
-#ifndef BIG_INTEGER_H
-#define BIG_INTEGER_H
+#pragma once
 
 #include <cstddef>
-#include <gmp.h>
+#include <vector>
 #include <iosfwd>
+#include <algorithm>
+#include <functional>
 
-struct big_integer
-{
+struct big_integer {
     big_integer();
     big_integer(big_integer const& other);
     big_integer(int a);
+    big_integer(uint32_t);
     explicit big_integer(std::string const& str);
     ~big_integer();
 
@@ -48,8 +49,24 @@ struct big_integer
     friend std::string to_string(big_integer const& a);
 
 private:
-    mpz_t mpz;
+    using uint128_t = unsigned __int128;
+
+    bool sign;
+    std::vector<uint32_t> digits;
+
+    size_t size() const;
+    void add_leading_zeros(size_t);
+    void erase_leading_zeros();
+
+    void to_add2(size_t);
+    big_integer bit_operation(big_integer const& rhs, const std::function<uint32_t(uint32_t, uint32_t)>&);
+
+    static big_integer div_short(big_integer const&, uint32_t const);
+    uint32_t trial(big_integer const&, big_integer const&);
+    bool smaller(big_integer const&, big_integer const&, size_t);
+    void difference(big_integer&, big_integer const&, size_t);
 };
+
 
 big_integer operator+(big_integer a, big_integer const& b);
 big_integer operator-(big_integer a, big_integer const& b);
@@ -73,5 +90,3 @@ bool operator>=(big_integer const& a, big_integer const& b);
 
 std::string to_string(big_integer const& a);
 std::ostream& operator<<(std::ostream& s, big_integer const& a);
-
-#endif // BIG_INTEGER_H
