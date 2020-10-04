@@ -14,7 +14,7 @@ big_integer::big_integer(uint32_t a) : sign(false), digits(1, a) {}
 
 big_integer::big_integer(std::string const& str) : big_integer() {
     if (str.empty() || (!isdigit(str[0]) && str[0] != '-')) {
-        throw std::runtime_error("Expected number, found: " + (str.empty() ? "empty string" : str));
+        throw std::runtime_error("Expected number, found: empty string");
     }
     for (size_t i = (str[0] == '-'); i < str.length(); i += 8) {
         if (!isdigit(str[i])) {
@@ -36,7 +36,6 @@ big_integer::big_integer(std::string const& str) : big_integer() {
 
 void big_integer::sum_unsigned(big_integer const &rhs) {
     bool carry = false;
-    add_leading_zeros(rhs.size());
     for (size_t i = 0; i < size(); i++) {
         uint64_t const res = static_cast<uint64_t>(digits[i]) + rhs.kth_digit(i) + carry;
         digits[i] = res;
@@ -51,7 +50,6 @@ void big_integer::sum_unsigned(big_integer const &rhs) {
 void big_integer::sub_from_bigger(big_integer const &rhs, bool less) {
     bool borrow = false;
     size_t len = std::max(size(), rhs.size());
-    add_leading_zeros(len);
     for (size_t i = 0; i < len; i++) {
         uint64_t value;
         if (less) {
