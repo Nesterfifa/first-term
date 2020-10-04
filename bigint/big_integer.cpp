@@ -13,7 +13,7 @@ big_integer::big_integer(int a) : sign(a < 0), digits(1) {
 big_integer::big_integer(uint32_t a) : sign(false), digits(1, a) {}
 
 big_integer::big_integer(std::string const& str) : big_integer() {
-    if (str.empty() || (!isdigit(str[0]) && str[0] != '-')) {
+    if (str.empty()) {
         throw std::runtime_error("Expected number, found: empty string");
     }
     for (size_t i = (str[0] == '-'); i < str.length(); i += 8) {
