@@ -6,8 +6,6 @@
 
 big_integer::big_integer() : sign(false), digits(1) {}
 
-big_integer::big_integer(big_integer const& other) = default;
-
 big_integer::big_integer(int a) : sign(a < 0), digits(1) {
     digits[0] = (a == INT_MIN ? static_cast<uint32_t>(INT_MAX) + 1 : abs(a));
 }
@@ -15,8 +13,17 @@ big_integer::big_integer(int a) : sign(a < 0), digits(1) {
 big_integer::big_integer(uint32_t a) : sign(false), digits(1, a) {}
 
 big_integer::big_integer(std::string const& str) : big_integer() {
+    if (str.empty() || (!isdigit(str[0]) && str[0] != '-')) {
+        throw std::runtime_error("Expected number, found: " + (str.empty() ? "empty string" : str));
+    }
     for (size_t i = (str[0] == '-'); i < str.length(); i += 8) {
-        uint32_t part = std::stoi(str.substr(i, 8));
+        if (!isdigit(str[i])) {
+            throw std::runtime_error("Invalid number");
+        }
+        uint32_t part = 0;
+        for (size_t j = i; j < std::min(str.length(), i + 8); j++) {
+            part = part * 10 + static_cast<uint32_t>(str[j] - '0');
+        }
         uint32_t pwd = 1;
         for (size_t cnt = 0; cnt < std::min(str.length() - i, 8ul); cnt++) {
             pwd *= 10;
@@ -27,45 +34,58 @@ big_integer::big_integer(std::string const& str) : big_integer() {
     sign = (str[0] == '-' && digits.back() != 0);
 }
 
-big_integer::~big_integer() = default;
-
-big_integer& big_integer::operator=(big_integer const& other) = default;
-
-big_integer& big_integer::operator+=(big_integer const& rhs) {
-    if (!sign && rhs.sign) {
-        return *this -= -rhs;
-    } else if (sign && !rhs.sign) {
-        return *this = rhs - (-*this);
-    }
+void big_integer::sum_unsigned(big_integer const &rhs) {
     bool carry = false;
     add_leading_zeros(rhs.size());
     for (size_t i = 0; i < size(); i++) {
-        uint64_t const res = static_cast<uint64_t>(digits[i]) + (i < rhs.size() ? rhs.digits[i] : 0) + carry;
+        uint64_t const res = static_cast<uint64_t>(digits[i]) + rhs.kth_digit(i) + carry;
         digits[i] = res;
-        carry = res > UINT32_MAX;
+        carry = res >> 32u;
     }
     if (carry) {
         digits.push_back(1);
     }
     erase_leading_zeros();
+}
+
+void big_integer::sub_from_bigger(big_integer const &rhs, bool less) {
+    bool borrow = false;
+    size_t len = std::max(size(), rhs.size());
+    add_leading_zeros(len);
+    for (size_t i = 0; i < len; i++) {
+        uint64_t value;
+        if (less) {
+            value = ((static_cast<uint64_t>(1) << 32u) + rhs.kth_digit(i)) - kth_digit(i) - borrow;
+        } else {
+            value = ((static_cast<uint64_t>(1) << 32u) + kth_digit(i)) - rhs.kth_digit(i) - borrow;
+        }
+        borrow = value <= UINT32_MAX;
+        digits[i] = value;
+    }
+    erase_leading_zeros();
+}
+
+big_integer& big_integer::operator+=(big_integer const& rhs) {
+    if (sign == rhs.sign) {
+        sum_unsigned(rhs);
+    } else {
+        add_leading_zeros(rhs.size());
+        bool less = smaller(*this, rhs, size());
+        sub_from_bigger(rhs, less);
+        sign ^= less;
+    }
     return *this;
 }
 
 big_integer& big_integer::operator-=(big_integer const& rhs) {
-    if (sign && rhs.sign) {
-        return *this = -(-*this - (-rhs));
-    } else if (!sign && rhs.sign) {
-        return *this += -rhs;
-    } else if ((sign && !rhs.sign) || *this < rhs) {
-        return *this = -(rhs - *this);
+    if (sign != rhs.sign) {
+        sum_unsigned(rhs);
+    } else {
+        add_leading_zeros(rhs.size());
+        bool less = smaller(*this, rhs, size());
+        sub_from_bigger(rhs, less);
+        sign ^= less;
     }
-    bool borrow = false;
-    for (size_t i = 0; i < rhs.size() || borrow; i++) {
-        int64_t const res = static_cast<int64_t>(digits[i]) - (i < rhs.size() ? rhs.digits[i] : 0) - borrow;
-        borrow = res < 0;
-        digits[i] = static_cast<uint32_t>(res + borrow * (static_cast<uint64_t>(1) << 32u));
-    }
-    erase_leading_zeros();
     return *this;
 }
 
@@ -75,24 +95,26 @@ big_integer& big_integer::operator*=(big_integer const& rhs) {
     ans.add_leading_zeros(size() + rhs.size());
     for (size_t i = 0; i < size(); i++) {
         uint32_t carry = 0;
-        for (size_t j = 0; j < rhs.size() || carry; j++) {
+        for (size_t j = 0; j < rhs.size(); j++) {
             uint64_t const res = static_cast<uint64_t>(digits[i])
-                    * (j < rhs.size() ? rhs.digits[j] : 0)
-                    + carry
+                    * rhs.kth_digit(j)
+                    + static_cast<uint64_t>(carry)
                     + ans.digits[i + j];
             ans.digits[i + j] = res;
             carry = res >> 32u;
         }
+        ans.digits[i + rhs.size()] += carry;
     }
     ans.erase_leading_zeros();
     return *this = ans;
 }
 
 big_integer big_integer::div_short(big_integer const& a, uint32_t const divider) {
-    uint32_t rem = 0;
-    big_integer ans(a);
+    uint64_t rem = 0;
+    big_integer ans;
+    ans.add_leading_zeros(a.size());
     for (ptrdiff_t i = ans.size() - 1; i >= 0; i--) {
-        uint64_t dividend = static_cast<uint64_t>(ans.digits[i]) + rem * (static_cast<uint64_t>(1) << 32u);
+        uint64_t dividend = static_cast<uint64_t>(a.digits[i]) + (rem << 32u);
         ans.digits[i] = dividend / divider;
         rem = dividend % divider;
     }
@@ -110,8 +132,8 @@ uint32_t big_integer::trial(big_integer const &a, big_integer const &b) {
 
 bool big_integer::smaller(const big_integer &a, const big_integer &b, size_t idx) {
     for (size_t i = 1; i <= a.size(); i++) {
-        if (a.digits[a.size() - i] != (idx - i < b.size() ? b.digits[idx - i] : 0)) {
-            return a.digits[a.size() - i] < (idx - i < b.size() ? b.digits[idx - i] : 0);
+        if (a.digits[a.size() - i] != b.kth_digit(idx - i)) {
+            return a.digits[a.size() - i] < b.kth_digit(idx - i);
         }
     }
     return false;
@@ -119,35 +141,46 @@ bool big_integer::smaller(const big_integer &a, const big_integer &b, size_t idx
 
 void big_integer::difference(big_integer &a, const big_integer &b, size_t idx) {
     size_t start = a.size() - idx;
-    bool carry = false;
-    for (size_t i = 0; i < idx; i++) {
-        uint32_t a_digit = a.digits[start + i];
-        uint32_t b_digit = (i < b.size() ? b.digits[i] : 0);
-        uint64_t res = static_cast<uint64_t>(a_digit) - b_digit - carry;
-        carry = b_digit + static_cast<uint32_t>(carry) > a_digit;
-        a.digits[start + i] = static_cast<uint32_t>(res);
+    for (size_t i = 0; i < idx;) {
+        if (a.digits[start + i] < b.kth_digit(i)) {
+            a.digits[start + i] = static_cast<uint64_t>(a.digits[start + i])
+                    + (static_cast<uint64_t>(1) << 32u)
+                    - b.kth_digit(i);
+            while (a.digits[start + i + 1] == 0) {
+                a.digits[start + i + 1] -= b.kth_digit(i + 1) + 1;
+                i++;
+            }
+            i++;
+            a.digits[start + i]--;
+        } else {
+            a.digits[start + i] -= b.kth_digit(i);
+            i++;
+        }
     }
 }
 
 big_integer& big_integer::operator/=(big_integer const& rhs) {
-    big_integer dividend(*this);
     big_integer ans;
-    if (dividend.size() < rhs.size()) {
-        return *this = big_integer();
+    if (size() < rhs.size()) {
+        return *this = ans;
     }
     if (rhs.size() == 1) {
-        ans = div_short(dividend, rhs.digits[0]);
+        ans = div_short(*this, rhs.digits[0]);
     } else {
+        uint32_t normalizer = (static_cast<uint64_t>(1) << 32u) / (static_cast<uint64_t>(rhs.digits.back()) + 1);
+        big_integer dividend = *this * normalizer;
+        big_integer divisor = rhs * normalizer;
+
         dividend.digits.push_back(0);
         size_t const n = dividend.size();
-        size_t const m = rhs.size() + 1;
+        size_t const m = divisor.size() + 1;
         ans.add_leading_zeros(n - m + 1);
         for (size_t i = 0; i <= n - m; i++) {
-            uint32_t res = trial(dividend, rhs);
-            big_integer multiple = rhs * res;
-            if (smaller(dividend, multiple, m)) {
+            uint32_t res = trial(dividend, divisor);
+            big_integer multiple = divisor * res;
+            while (smaller(dividend, multiple, m)) {
                 res--;
-                multiple -= rhs;
+                multiple -= divisor;
             }
             ans.digits[n - m - i] = res;
             difference(dividend, multiple, m);
@@ -177,7 +210,8 @@ void big_integer::to_add2(size_t length) {
 }
 
 big_integer big_integer::bit_operation(big_integer const& rhs, const std::function<uint32_t(uint32_t, uint32_t)>& operation) {
-    big_integer this_copy(*this), rhs_copy(rhs);
+    big_integer this_copy(*this),
+    rhs_copy(rhs);
     size_t len = std::max(this_copy.size(), rhs_copy.size());
     this_copy.to_add2(len);
     rhs_copy.to_add2(len);
@@ -233,7 +267,19 @@ big_integer big_integer::operator-() const {
 }
 
 big_integer big_integer::operator~() const {
-    return -*this - 1;
+    big_integer rev(*this);
+    if (rev.digits.back() == 0) {
+        rev.digits.back() = 1;
+        rev.sign = true;
+    } else {
+        rev.sign ^= true;
+        size_t i = 0;
+        while (rev.digits[i] == (rev.sign ? UINT32_MAX : 0)) {
+            rev.digits[i] = (rev.sign ? 0 : UINT32_MAX);
+        }
+        rev.digits[i] += (rev.sign ? 1 : -1);
+    }
+    return rev;
 }
 
 big_integer& big_integer::operator++() {
@@ -362,6 +408,11 @@ void big_integer::erase_leading_zeros() {
         digits.pop_back();
     }
     sign &= !(digits == std::vector<uint32_t>{0});
+}
+
+
+uint32_t big_integer::kth_digit(size_t idx) const {
+    return (idx < size() ? digits[idx] : 0);
 }
 
 std::string to_string(big_integer const& a) {
