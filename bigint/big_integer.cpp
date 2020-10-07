@@ -16,12 +16,12 @@ big_integer::big_integer(std::string const& str) : big_integer() {
     if (str.empty()) {
         throw std::runtime_error("Expected number, found: empty string");
     }
-    for (size_t i = (str[0] == '-'); i < str.length(); i += 8) {
-        if (!isdigit(str[i])) {
-            throw std::runtime_error("Invalid number");
-        }
+    for (size_t i = (str[0] == '-' || str[0] == '+'); i < str.length(); i += 8) {
         uint32_t part = 0;
         for (size_t j = i; j < std::min(str.length(), i + 8); j++) {
+            if (!isdigit(str[j])) {
+                throw std::runtime_error("Invalid number");
+            }
             part = part * 10 + static_cast<uint32_t>(str[j] - '0');
         }
         uint32_t pwd = 1;
@@ -35,30 +35,32 @@ big_integer::big_integer(std::string const& str) : big_integer() {
 }
 
 void big_integer::sum_unsigned(big_integer const &rhs) {
-    bool carry = false;
+    uint64_t carry = 0;
     for (size_t i = 0; i < size(); i++) {
         uint64_t const res = static_cast<uint64_t>(digits[i]) + rhs.kth_digit(i) + carry;
         digits[i] = res;
         carry = res >> 32u;
     }
-    if (carry) {
-        digits.push_back(1);
-    }
+    digits.push_back(carry);
     erase_leading_zeros();
 }
 
 void big_integer::sub_from_bigger(big_integer const &rhs, bool less) {
-    bool borrow = false;
-    size_t len = std::max(size(), rhs.size());
-    for (size_t i = 0; i < len; i++) {
-        uint64_t value;
+    uint64_t res;
+    if (less) {
+        res = (static_cast<uint64_t>(rhs.kth_digit(1)) << 32u) | rhs.digits[0];
+    } else {
+        res = (static_cast<uint64_t>(kth_digit(1)) << 32u) | digits[0];
+    }
+    for (size_t i = 0; i < size(); i++) {
+        res -= less ? kth_digit(i) : rhs.kth_digit(i);
+        digits[i] = res;
+        res >>= 32u;
         if (less) {
-            value = ((static_cast<uint64_t>(1) << 32u) + rhs.kth_digit(i)) - kth_digit(i) - borrow;
+            res |= (static_cast<uint64_t>(rhs.kth_digit(i + 2)) - (res > rhs.kth_digit(i + 1))) << 32u;
         } else {
-            value = ((static_cast<uint64_t>(1) << 32u) + kth_digit(i)) - rhs.kth_digit(i) - borrow;
+            res |= (static_cast<uint64_t>(kth_digit(i + 2)) - (res > kth_digit(i + 1))) << 32u;
         }
-        borrow = value <= UINT32_MAX;
-        digits[i] = value;
     }
     erase_leading_zeros();
 }
@@ -92,11 +94,11 @@ big_integer& big_integer::operator*=(big_integer const& rhs) {
     ans.sign = sign ^ rhs.sign;
     ans.add_leading_zeros(size() + rhs.size());
     for (size_t i = 0; i < size(); i++) {
-        uint32_t carry = 0;
+        uint64_t carry = 0;
         for (size_t j = 0; j < rhs.size(); j++) {
             uint64_t const res = static_cast<uint64_t>(digits[i])
                     * rhs.kth_digit(j)
-                    + static_cast<uint64_t>(carry)
+                    + carry
                     + ans.digits[i + j];
             ans.digits[i + j] = res;
             carry = res >> 32u;
@@ -139,21 +141,12 @@ bool big_integer::smaller(const big_integer &a, const big_integer &b, size_t idx
 
 void big_integer::difference(big_integer &a, const big_integer &b, size_t idx) {
     size_t start = a.size() - idx;
-    for (size_t i = 0; i < idx;) {
-        if (a.digits[start + i] < b.kth_digit(i)) {
-            a.digits[start + i] = static_cast<uint64_t>(a.digits[start + i])
-                    + (static_cast<uint64_t>(1) << 32u)
-                    - b.kth_digit(i);
-            while (a.digits[start + i + 1] == 0) {
-                a.digits[start + i + 1] -= b.kth_digit(i + 1) + 1;
-                i++;
-            }
-            i++;
-            a.digits[start + i]--;
-        } else {
-            a.digits[start + i] -= b.kth_digit(i);
-            i++;
-        }
+    uint64_t res = (static_cast<uint64_t>(a.kth_digit(start + 1)) << 32u) | a.kth_digit(start);
+    for (size_t i = 0; i < idx; i++) {
+        res -= b.kth_digit(i);
+        a.digits[start + i] = res;
+        res >>= 32u;
+        res |= static_cast<uint64_t>(a.kth_digit(start + i + 2) - (res > a.kth_digit(start + i + 1))) << 32u;
     }
 }
 
