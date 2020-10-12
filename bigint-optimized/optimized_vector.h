@@ -224,3 +224,4 @@ private:
         return (size_ & FLAG) == 0;
     }
 };
+

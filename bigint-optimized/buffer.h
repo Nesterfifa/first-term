@@ -12,3 +12,4 @@ struct buffer {
         return buf;
     }
 };
+
