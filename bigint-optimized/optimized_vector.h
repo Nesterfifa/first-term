@@ -86,6 +86,7 @@ struct optimized_vector
             if (size() == capacity()) {
                 buffer* expanded = buffer::allocate_buffer(2 * capacity());
                 std::copy_n(dynamic_data->data, size(), expanded->data);
+                operator delete(dynamic_data);
                 dynamic_data = expanded;
             }
             dynamic_data->data[size()] = val;
