@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <climits>
 #include "buffer.h"
 
 struct optimized_vector
@@ -12,16 +13,12 @@ struct optimized_vector
     using const_iterator = uint32_t const*;
 
     optimized_vector() : size_(0) {};
-    optimized_vector(size_t sz, uint32_t value = 0) : size_(0) {
+    optimized_vector(size_t sz, uint32_t value = 0) : size_(sz) {
         if (sz <= MAX_SMALL) {
-            while (size_ < sz) {
-                static_data[size_++] = value;
-            }
+            std::fill(static_data, static_data + sz, value);
         } else {
             dynamic_data = buffer::allocate_buffer(sz);
-            while (size_ < sz) {
-                dynamic_data->data[size_++] = value;
-            }
+            std::fill(dynamic_data->data, dynamic_data->data + sz, value);
             size_ |= FLAG;
         }
     }
@@ -57,7 +54,7 @@ struct optimized_vector
             return false;
         }
         for (size_t i = 0; i < size(); i++) {
-            if (operator[](i) != other.operator[](i)) {
+            if ((*this)[i] != other[i]) {
                 return false;
             }
         }
@@ -85,7 +82,7 @@ struct optimized_vector
     }
 
     void push_back(uint32_t const& val) {
-        if (size_ < MAX_SMALL) {
+        if (small() && size_ < MAX_SMALL) {
             static_data[size_++] = val;
         } else {
             to_big(capacity() * (1 + (size() == capacity())));
@@ -120,11 +117,11 @@ struct optimized_vector
                 std::swap(static_data, other.static_data);
                 std::swap(size_, other.size_);
             } else {
-                swap(*this, other);
+                swap_small_big(*this, other);
             }
         } else {
             if (other.small()) {
-                swap(other, *this);
+                swap_small_big(other, *this);
             } else {
                 std::swap(dynamic_data, other.dynamic_data);
                 std::swap(size_, other.size_);
@@ -157,13 +154,10 @@ struct optimized_vector
         size_t old_size = size();
         ptrdiff_t start = first - begin();
         for (size_t i = 0; i < cnt; i++) {
-            push_back(0);
+            push_back(elem);
         }
         for (ptrdiff_t i = old_size + cnt - 1; i >= static_cast<ptrdiff_t>(start + cnt); i--) {
-            operator[](i) = operator[](i - cnt);
-        }
-        for (ptrdiff_t i = start; i < start + cnt; i++) {
-            operator[](i) = elem;
+            std::swap((*this)[i], (*this)[i - cnt]);
         }
         return begin() + start;
     }
@@ -178,7 +172,7 @@ struct optimized_vector
         if (len > 0) {
             unshare(capacity());
             for (ptrdiff_t i = left; i + len < size(); i++) {
-                std::swap(operator[](i), operator[](i + len));
+                std::swap((*this)[i], (*this)[i + len]);
             }
             size_ -= len;
         }
@@ -187,7 +181,7 @@ struct optimized_vector
 
 private:
     static constexpr size_t MAX_SMALL = 2;
-    static constexpr size_t FLAG = static_cast<size_t>(1) << (8 * sizeof(size_t) - 1);
+    static constexpr size_t FLAG = static_cast<size_t>(1) << (CHAR_BIT * sizeof(size_t) - 1);
     size_t size_;
 
     union {
@@ -195,31 +189,32 @@ private:
         buffer* dynamic_data;
     };
 
-    void unshare(size_t capacity) {
+    void unshare(size_t new_capacity) {
+        assert(new_capacity >= capacity());
         if (!small() && dynamic_data->ref_counter > 1) {
             dynamic_data->ref_counter--;
-            buffer* unshared_data = buffer::allocate_buffer(capacity);
+            buffer* unshared_data = buffer::allocate_buffer(new_capacity);
             std::copy_n(dynamic_data->data, size(), unshared_data->data);
             dynamic_data = unshared_data;
         }
     }
 
-    void to_big(size_t capacity) {
+    void to_big(size_t new_capacity) {
+        assert(new_capacity >= capacity());
         if (small()) {
-            buffer* copy = buffer::allocate_buffer(capacity);
+            buffer* copy = buffer::allocate_buffer(new_capacity);
             std::copy_n(static_data, size(), copy->data);
             dynamic_data = copy;
             size_ |= FLAG;
         }
     }
 
-    //pre: a.small() && !b.small()
-    static void swap(optimized_vector &a, optimized_vector& b) {
+    static void swap_small_big(optimized_vector& small_vector, optimized_vector& big_vector) {
         uint32_t static_buf[MAX_SMALL];
-        std::copy_n(a.static_data, a.size_, static_buf);
-        a.dynamic_data = b.dynamic_data;
-        std::copy_n(static_buf, a.size_, b.static_data);
-        std::swap(a.size_, b.size_);
+        std::copy_n(small_vector.static_data, small_vector.size_, static_buf);
+        small_vector.dynamic_data = big_vector.dynamic_data;
+        std::copy_n(static_buf, small_vector.size_, big_vector.static_data);
+        std::swap(small_vector.size_, big_vector.size_);
     }
 
     bool small() const {
