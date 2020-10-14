@@ -190,7 +190,7 @@ private:
     };
 
     void unshare(size_t new_capacity) {
-        assert(new_capacity >= capacity());
+        assert(new_capacity >= size());
         if (!small() && dynamic_data->ref_counter > 1) {
             dynamic_data->ref_counter--;
             buffer* unshared_data = buffer::allocate_buffer(new_capacity);
@@ -200,7 +200,7 @@ private:
     }
 
     void to_big(size_t new_capacity) {
-        assert(new_capacity >= capacity());
+        assert(new_capacity >= size());
         if (small()) {
             buffer* copy = buffer::allocate_buffer(new_capacity);
             std::copy_n(static_data, size(), copy->data);
@@ -210,10 +210,9 @@ private:
     }
 
     static void swap_small_big(optimized_vector& small_vector, optimized_vector& big_vector) {
-        uint32_t static_buf[MAX_SMALL];
-        std::copy_n(small_vector.static_data, small_vector.size_, static_buf);
-        small_vector.dynamic_data = big_vector.dynamic_data;
-        std::copy_n(static_buf, small_vector.size_, big_vector.static_data);
+        buffer* big_data = big_vector.dynamic_data;
+        std::copy_n(small_vector.static_data, small_vector.size_, big_vector.static_data);
+        small_vector.dynamic_data = big_data;
         std::swap(small_vector.size_, big_vector.size_);
     }
 
